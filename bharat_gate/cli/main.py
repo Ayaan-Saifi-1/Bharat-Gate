@@ -177,6 +177,11 @@ def run_cli(
     bench_parser = subparsers.add_parser("benchmark", help="Run token efficiency and caching benchmark")
     bench_parser.add_argument("--json", action="store_true", help="Output benchmark data as JSON")
 
+    # 7. serve
+    serve_parser = subparsers.add_parser("serve", help="Start the BharatGate Web Studio server")
+    serve_parser.add_argument("--host", default="127.0.0.1", help="Host address to bind")
+    serve_parser.add_argument("--port", type=int, default=5000, help="Port to listen on")
+
     args = parser.parse_args(argv)
 
     if not args.command:
@@ -440,5 +445,16 @@ def run_cli(
                 render_benchmark_report(benchmark_data)
 
             return 0
+
+    # ------------------------------------------------------------------------
+    # Subcommand: serve
+    # ------------------------------------------------------------------------
+    if args.command == "serve":
+        from bharat_gate.web.app import create_app
+
+        web_app = create_app(repo_root=target_root, client=client)
+        print(f"Starting BharatGate Web Studio on http://{args.host}:{args.port}")
+        web_app.run(host=args.host, port=args.port, debug=False)
+        return 0
 
     return 0

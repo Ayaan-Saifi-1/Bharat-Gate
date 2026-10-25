@@ -9,3 +9,4 @@ __pycache__/
 *.sqlite3-wal
 *.sqlite3-shm
 .bharat_gate_cache/
+bharatgate_master_spec*.md
