@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BharatGate Web Studio — Autonomous Pre-Push Verification Gate</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            },
+            surface: {
+              900: '#0b0f17',
+              800: '#111827',
+              700: '#1e293b',
+              600: '#334155',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #0b0f17; color: #f1f5f9; }
+    pre, code, textarea { font-family: 'JetBrains Mono', monospace; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0b0f17; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-[#0b0f17] text-slate-100 antialiased selection:bg-indigo-500 selection:text-white">
+
+  <!-- ===================================================================== -->
+  <!-- TOP HEADER BAR                                                        -->
+  <!-- ===================================================================== -->
+  <header class="border-b border-slate-800 bg-[#0f172a]/80 backdrop-blur sticky top-0 z-40 px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <div class="h-9 w-9 rounded-lg bg-gradient-to-tr from-indigo-600 to-cyan-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 font-bold text-lg text-white">
+        B
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="font-bold text-lg tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">BharatGate</span>
+          <span class="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">Studio v0.1.0</span>
+        </div>
+        <p class="text-xs text-slate-400">Pre-Push Verification Harness &amp; Shared-GPU Gateway</p>
+      </div>
+    </div>
+
+    <!-- Live Architecture Pills -->
+    <div class="flex flex-wrap items-center gap-2 text-xs">
+      <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-800/80 border border-slate-700/60 text-slate-300">
+        <span class="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span class="text-slate-400">Model:</span>
+        <span class="font-semibold text-slate-200" id="stat-model">qwen-3.8-27b</span>
+      </div>
+
+      <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-800/80 border border-slate-700/60 text-slate-300">
+        <span class="text-slate-400">API:</span>
+        <span class="font-mono text-cyan-400 font-medium">POST /v1/responses (store: false)</span>
+      </div>
+
+      <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-800/80 border border-slate-700/60 text-slate-300">
+        <span class="text-slate-400">Cache Hit Rate:</span>
+        <span class="font-semibold text-emerald-400" id="stat-hit-rate">0%</span>
+      </div>
+
+      <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-800/80 border border-slate-700/60 text-slate-300">
+        <span class="text-slate-400">Tokens Saved:</span>
+        <span class="font-semibold text-amber-400" id="stat-tokens-saved">0</span>
+      </div>
+
+      <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-800/80 border border-slate-700/60 text-slate-300">
+        <span class="text-slate-400">Latest x-request-id:</span>
+        <span class="font-mono text-indigo-300 font-medium truncate max-w-[140px]" id="stat-request-id">None</span>
+      </div>
+
+      <button id="doctor-btn" onclick="openDoctorModal()" class="flex items-center gap-1.5 px-3 py-1 rounded-md bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 text-indigo-300 font-medium transition cursor-pointer">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+        <span>System Doctor</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ===================================================================== -->
+  <!-- MAIN 2-PANE WORKBENCH                                                 -->
+  <!-- ===================================================================== -->
+  <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-0 overflow-hidden">
+
+    <!-- LEFT PANE: Input, Scenarios & Controls (5 Cols) -->
+    <section class="lg:col-span-5 border-r border-slate-800 bg-[#0f172a]/40 p-5 flex flex-col gap-4 overflow-y-auto">
+
+      <!-- Scenario Selector Buttons -->
+      <div>
+        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">1-Click Multi-Hop Replay Scenarios</label>
+        <div class="grid grid-cols-1 gap-2" id="scenarios-container">
+          <button onclick="selectScenario('1')" id="btn-scen-1" class="scenario-btn text-left p-2.5 rounded-lg border border-indigo-500/40 bg-indigo-500/10 hover:bg-indigo-500/20 transition text-xs">
+            <div class="font-semibold text-indigo-300 flex items-center justify-between">
+              <span>Scenario 1: Shared-GPU SSE Slot Leak</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono">CRITICAL</span>
+            </div>
+            <p class="text-slate-400 text-[11px] mt-0.5 truncate">Aborted SSE stream leak & missing HTTP 503 retry backoff</p>
+          </button>
+
+          <button onclick="selectScenario('2')" id="btn-scen-2" class="scenario-btn text-left p-2.5 rounded-lg border border-slate-700/80 bg-slate-800/40 hover:bg-slate-800 transition text-xs">
+            <div class="font-semibold text-slate-300 flex items-center justify-between">
+              <span>Scenario 2: Razorpay Paise/Rupees Caller Bug</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono">HIGH</span>
+            </div>
+            <p class="text-slate-400 text-[11px] mt-0.5 truncate">Breaking currency contract across webhook & invoice callers</p>
+          </button>
+
+          <button onclick="selectScenario('3')" id="btn-scen-3" class="scenario-btn text-left p-2.5 rounded-lg border border-slate-700/80 bg-slate-800/40 hover:bg-slate-800 transition text-xs">
+            <div class="font-semibold text-slate-300 flex items-center justify-between">
+              <span>Scenario 3: Auth Secret Redaction + SQLi</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 font-mono">SECURITY</span>
+            </div>
+            <p class="text-slate-400 text-[11px] mt-0.5 truncate">Hardcoded API token redacted locally before API + SQL injection</p>
+          </button>
+        </div>
+      </div>
+
+      <!-- Execution Mode Radio -->
+      <div>
+        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Execution Mode</label>
+        <div class="grid grid-cols-1 gap-1.5 text-xs">
+          <label class="flex items-center gap-2.5 p-2 rounded-md border border-slate-800 bg-slate-900/60 hover:bg-slate-800/50 cursor-pointer transition">
+            <input type="radio" name="audit-mode" value="replay" checked class="text-indigo-600 focus:ring-0 bg-slate-800 border-slate-700">
+            <div>
+              <span class="font-semibold text-slate-200">Instant Judge Replay</span>
+              <span class="text-slate-400 text-[11px]"> (0ms · Pre-Recorded qwen-3.8-27b Multi-Hop Trace)</span>
+            </div>
+          </label>
+
+          <label class="flex items-center gap-2.5 p-2 rounded-md border border-slate-800 bg-slate-900/60 hover:bg-slate-800/50 cursor-pointer transition">
+            <input type="radio" name="audit-mode" value="offline_mock" class="text-indigo-600 focus:ring-0 bg-slate-800 border-slate-700">
+            <div>
+              <span class="font-semibold text-slate-200">Local AST + Offline Mock LLM</span>
+              <span class="text-slate-400 text-[11px]"> (Audit Custom Diffs · 0 API Key Needed)</span>
+            </div>
+          </label>
+
+          <label class="flex items-center gap-2.5 p-2 rounded-md border border-slate-800 bg-slate-900/60 hover:bg-slate-800/50 cursor-pointer transition">
+            <input type="radio" name="audit-mode" value="live" class="text-indigo-600 focus:ring-0 bg-slate-800 border-slate-700">
+            <div>
+              <span class="font-semibold text-slate-200">Live BharatCode API</span>
+              <span class="text-slate-400 text-[11px]"> (qwen-3.8-27b via /v1/responses SSE)</span>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Unified Git Diff Editor -->
+      <div class="flex-1 flex flex-col min-h-[220px]">
+        <div class="flex items-center justify-between mb-1.5">
+          <label for="diff-input" class="text-xs font-semibold uppercase tracking-wider text-slate-400">Unified Git Diff</label>
+          <button onclick="resetCurrentDiff()" class="text-[11px] text-slate-400 hover:text-indigo-300 transition">Reset Diff</button>
+        </div>
+        <textarea id="diff-input" spellcheck="false" class="w-full flex-1 p-3 text-xs font-mono bg-[#090d16] border border-slate-800 rounded-lg text-slate-300 focus:outline-none focus:border-indigo-500/60 resize-none leading-relaxed" placeholder="Paste unified git diff here..."></textarea>
+      </div>
+
+      <!-- Action Button & Progress Tracker -->
+      <div class="space-y-2">
+        <button id="run-audit-btn" onclick="executeAudit()" class="w-full py-2.5 px-4 rounded-lg bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-medium text-sm shadow-lg shadow-indigo-600/20 transition flex items-center justify-center gap-2 cursor-pointer">
+          <svg id="run-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <svg id="run-spinner" class="w-4 h-4 animate-spin hidden" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+          <span id="run-btn-text">Run Verification Harness</span>
+        </button>
+
+        <!-- SSE Stage Announcement Bar -->
+        <div id="sse-status-container" class="hidden text-xs p-2.5 rounded-lg border border-slate-800 bg-[#090d16] flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+            </span>
+            <span id="sse-stage-msg" class="text-slate-300 font-mono">Initializing audit stream...</span>
+          </div>
+          <span id="sse-heartbeat-tag" class="text-[10px] text-cyan-400 font-mono">: keepalive</span>
+        </div>
+
+        <!-- Stage 0 Pre-Pass Metric Bar -->
+        <div class="grid grid-cols-3 gap-2 text-center text-xs pt-1">
+          <div class="p-2 rounded-md bg-slate-900/80 border border-slate-800">
+            <div class="text-[10px] uppercase tracking-wider text-slate-400">Secrets Redacted</div>
+            <div class="text-sm font-bold text-red-400 mt-0.5" id="stage0-secrets">0</div>
+          </div>
+          <div class="p-2 rounded-md bg-slate-900/80 border border-slate-800">
+            <div class="text-[10px] uppercase tracking-wider text-slate-400">Modified Symbols</div>
+            <div class="text-sm font-bold text-indigo-400 mt-0.5" id="stage0-symbols">0</div>
+          </div>
+          <div class="p-2 rounded-md bg-slate-900/80 border border-slate-800">
+            <div class="text-[10px] uppercase tracking-wider text-slate-400">Callers Impacted</div>
+            <div class="text-sm font-bold text-amber-400 mt-0.5" id="stage0-callers">0</div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- RIGHT PANE: Interactive Results & Telemetry (7 Cols) -->
+    <section class="lg:col-span-7 flex flex-col bg-[#0b0f17] overflow-hidden">
+
+      <!-- Tab Navigation Bar -->
+      <div class="border-b border-slate-800 bg-[#0f172a]/60 px-5 pt-3 flex items-center gap-1 overflow-x-auto text-xs">
+        <button onclick="switchTab('findings')" id="tab-btn-findings" class="tab-btn px-3 py-2 border-b-2 border-indigo-500 text-indigo-400 font-semibold flex items-center gap-1.5 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Findings &amp; Unified Patches
+          <span id="badge-findings-count" class="px-1.5 py-0.2 rounded-full bg-slate-800 text-[10px] text-slate-300">0</span>
+        </button>
+
+        <button onclick="switchTab('blast_radius')" id="tab-btn-blast_radius" class="tab-btn px-3 py-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200 font-medium flex items-center gap-1.5 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          AST Blast-Radius Graph
+        </button>
+
+        <button onclick="switchTab('trace')" id="tab-btn-trace" class="tab-btn px-3 py-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200 font-medium flex items-center gap-1.5 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          Stateless Tool Trace &amp; &lt;think&gt;
+        </button>
+
+        <button onclick="switchTab('pytest')" id="tab-btn-pytest" class="tab-btn px-3 py-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200 font-medium flex items-center gap-1.5 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+          Synthesized pytest &amp; GPU Telemetry
+        </button>
+      </div>
+
+      <!-- Tab Content Area -->
+      <div class="flex-1 p-6 overflow-y-auto space-y-5">
+
+        <!-- TAB 1: Findings & Unified Patches -->
+        <div id="tab-pane-findings" class="space-y-4">
+          <!-- Verdict Card -->
+          <div id="verdict-banner" class="p-4 rounded-xl border border-red-500/30 bg-red-950/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div class="space-y-1">
+              <div class="flex items-center gap-2.5">
+                <span id="verdict-tag" class="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/30">BLOCK</span>
+                <span class="text-xs text-slate-400">Pre-Push Gate Decision</span>
+              </div>
+              <p id="verdict-summary" class="text-sm font-medium text-slate-200 leading-snug">
+                Audit result will appear here after running the harness.
+              </p>
+            </div>
+            <div class="flex items-center gap-3 shrink-0">
+              <div class="text-right">
+                <div class="text-xs text-slate-400 uppercase font-medium">Risk Score</div>
+                <div class="text-2xl font-bold font-mono text-amber-400"><span id="verdict-score">92</span><span class="text-xs text-slate-500 font-normal">/100</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Findings List -->
+          <div class="space-y-3" id="findings-list">
+            <!-- Populated via JS -->
+          </div>
+        </div>
+
+        <!-- TAB 2: AST Blast-Radius Graph -->
+        <div id="tab-pane-blast_radius" class="hidden space-y-4">
+          <div class="p-3.5 rounded-lg border border-slate-800 bg-[#0f172a]/60 text-xs text-slate-300">
+            <h4 class="font-semibold text-slate-100 mb-1">Static AST Symbol Graph Inspection</h4>
+            <p class="text-slate-400">Identifies all symbols modified in the PR diff and performs a reverse AST cross-file reference scan to catch breaking caller bugs before runtime.</p>
+          </div>
+
+          <!-- Modified Symbols Card -->
+          <div>
+            <h5 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Modified Symbols Detected</h5>
+            <div class="space-y-2" id="blast-symbols-list">
+              <!-- Populated via JS -->
+            </div>
+          </div>
+
+          <!-- Impacted Callers Card -->
+          <div>
+            <h5 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Impacted Callers Across Repository</h5>
+            <div class="space-y-2" id="blast-callers-list">
+              <!-- Populated via JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: Stateless Tool Trace & <think> -->
+        <div id="tab-pane-trace" class="hidden space-y-4">
+          <!-- Request IDs -->
+          <div class="p-3 rounded-lg border border-slate-800 bg-[#0f172a]/40 text-xs flex flex-wrap items-center gap-2">
+            <span class="text-slate-400 font-semibold">Captured x-request-id Headers:</span>
+            <div id="trace-request-ids" class="flex flex-wrap gap-1.5 font-mono text-cyan-400">
+              <!-- Populated via JS -->
+            </div>
+          </div>
+
+          <!-- Tool Execution Table -->
+          <div>
+            <h5 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Stateless Multi-Turn Tool Loop (/v1/responses)</h5>
+            <div class="border border-slate-800 rounded-lg overflow-hidden bg-[#090d16]">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr class="border-b border-slate-800 bg-slate-900/60 text-slate-400 font-semibold">
+                    <th class="p-2.5 w-12 text-center">Step</th>
+                    <th class="p-2.5 w-36">Tool Name</th>
+                    <th class="p-2.5 w-40">Call ID</th>
+                    <th class="p-2.5">Arguments &amp; Output Preview</th>
+                    <th class="p-2.5 w-20 text-right">Duration</th>
+                  </tr>
+                </thead>
+                <tbody id="trace-tools-tbody" class="divide-y divide-slate-800/60 font-mono text-slate-300">
+                  <!-- Populated via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Reasoning Trace Panels -->
+          <div>
+            <h5 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Model &lt;think&gt; Internal Reasoning Traces</h5>
+            <div class="space-y-2.5" id="trace-thinking-container">
+              <!-- Populated via JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 4: Synthesized pytest & GPU Telemetry -->
+        <div id="tab-pane-pytest" class="hidden space-y-5">
+          <!-- Synthesized Pytest Block -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <h5 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Auto-Synthesized Regression Test (AST Validated)</h5>
+              <button onclick="copyPytestCode()" id="copy-pytest-btn" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-indigo-300 font-mono border border-slate-700 transition flex items-center gap-1 cursor-pointer">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                Copy pytest Suite
+              </button>
+            </div>
+            <pre class="p-4 rounded-lg bg-[#090d16] border border-slate-800 text-xs text-emerald-400 font-mono overflow-x-auto leading-relaxed max-h-96" id="synthesized-test-code"># Synthesized test code will appear here...</pre>
+          </div>
+
+          <!-- SQLite WAL Telemetry Metrics -->
+          <div>
+            <h5 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">SQLite WAL Telemetry Ledger</h5>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs" id="telemetry-grid">
+              <!-- Populated via JS -->
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===================================================================== -->
+  <!-- SYSTEM DOCTOR DIAGNOSTICS MODAL                                       -->
+  <!-- ===================================================================== -->
+  <div id="doctor-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="w-full max-w-2xl bg-[#0f172a] border border-slate-800 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+      <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="h-2.5 w-2.5 rounded-full bg-indigo-500"></span>
+          <h3 class="font-bold text-sm text-slate-100">System Doctor Diagnostics (--doctor)</h3>
+        </div>
+        <button onclick="closeDoctorModal()" class="text-slate-400 hover:text-slate-200 text-lg cursor-pointer">&times;</button>
+      </div>
+
+      <div class="p-5 overflow-y-auto space-y-4">
+        <div id="doctor-loading" class="text-center py-8 text-xs text-slate-400 flex flex-col items-center gap-2">
+          <svg class="w-6 h-6 animate-spin text-indigo-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+          Running 6-point diagnostics check...
+        </div>
+        <div id="doctor-results" class="space-y-2 hidden">
+          <!-- Populated via JS -->
+        </div>
+      </div>
+
+      <div class="px-5 py-3 border-t border-slate-800 bg-slate-900/60 flex justify-end">
+        <button onclick="closeDoctorModal()" class="px-4 py-1.5 rounded-md bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 transition cursor-pointer">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- CLIENT-SIDE LOGIC (VANILLA JS)                                        -->
+  <!-- ===================================================================== -->
+  <script>
+    let activeScenarioId = '1';
+    let scenariosData = {};
+    let lastResult = null;
+
+    // Load initial scenarios and telemetry on load
+    window.addEventListener('DOMContentLoaded', async () => {
+      await loadScenarios();
+      await loadTelemetry();
+    });
+
+    async function loadScenarios() {
+      try {
+        const res = await fetch('/api/scenarios');
+        const data = await res.json();
+        if (data.scenarios) {
+          data.scenarios.forEach((s, idx) => {
+            scenariosData[String(idx + 1)] = s;
+            scenariosData[s.id] = s;
+          });
+          selectScenario('1');
+        }
+      } catch (err) {
+        console.error("Failed to load scenarios:", err);
+      }
+    }
+
+    async function loadTelemetry() {
+      try {
+        const res = await fetch('/api/telemetry');
+        const data = await res.json();
+        if (data.telemetry) {
+          const t = data.telemetry;
+          document.getElementById('stat-hit-rate').textContent = `${t.cache_hit_rate_pct}%`;
+          document.getElementById('stat-tokens-saved').textContent = t.estimated_tokens_saved.toLocaleString();
+          if (t.recent_request_ids && t.recent_request_ids.length > 0) {
+            document.getElementById('stat-request-id').textContent = t.recent_request_ids[0];
+          }
+          renderTelemetryGrid(t, data.hook);
+        }
+      } catch (err) {
+        console.error("Failed to load telemetry:", err);
+      }
+    }
+
+    function renderTelemetryGrid(t, hook) {
+      const grid = document.getElementById('telemetry-grid');
+      grid.innerHTML = `
+        <div class="p-3 rounded-lg bg-slate-900 border border-slate-800">
+          <div class="text-[10px] text-slate-400 uppercase">Total Requests</div>
+          <div class="text-base font-bold font-mono text-slate-200 mt-0.5">${t.total_requests}</div>
+        </div>
+        <div class="p-3 rounded-lg bg-slate-900 border border-slate-800">
+          <div class="text-[10px] text-slate-400 uppercase">Cache Hits</div>
+          <div class="text-base font-bold font-mono text-emerald-400 mt-0.5">${t.cache_hits}</div>
+        </div>
+        <div class="p-3 rounded-lg bg-slate-900 border border-slate-800">
+          <div class="text-[10px] text-slate-400 uppercase">Avg Latency</div>
+          <div class="text-base font-bold font-mono text-cyan-400 mt-0.5">${t.avg_latency_ms.toFixed(1)}ms</div>
+        </div>
+        <div class="p-3 rounded-lg bg-slate-900 border border-slate-800">
+          <div class="text-[10px] text-slate-400 uppercase">Pre-Push Hook</div>
+          <div class="text-base font-bold font-mono ${hook && hook.installed ? 'text-emerald-400' : 'text-amber-400'} mt-0.5">${hook && hook.installed ? 'Active' : 'Uninstalled'}</div>
+        </div>
+      `;
+    }
+
+    function selectScenario(id) {
+      activeScenarioId = id;
+      const s = scenariosData[id];
+      if (!s) return;
+
+      // Update button styling
+      ['1', '2', '3'].forEach(i => {
+        const btn = document.getElementById(`btn-scen-${i}`);
+        if (i === id) {
+          btn.className = "scenario-btn text-left p-2.5 rounded-lg border border-indigo-500/40 bg-indigo-500/10 hover:bg-indigo-500/20 transition text-xs";
+        } else {
+          btn.className = "scenario-btn text-left p-2.5 rounded-lg border border-slate-700/80 bg-slate-800/40 hover:bg-slate-800 transition text-xs";
+        }
+      });
+
+      // Update textarea
+      document.getElementById('diff-input').value = s.raw_diff;
+
+      // Pre-fill recorded results
+      if (s.recorded_result) {
+        renderAuditResult(s.recorded_result);
+      }
+    }
+
+    function resetCurrentDiff() {
+      selectScenario(activeScenarioId);
+    }
+
+    function switchTab(tabName) {
+      ['findings', 'blast_radius', 'trace', 'pytest'].forEach(t => {
+        const pane = document.getElementById(`tab-pane-${t}`);
+        const btn = document.getElementById(`tab-btn-${t}`);
+        if (t === tabName) {
+          pane.classList.remove('hidden');
+          btn.className = "tab-btn px-3 py-2 border-b-2 border-indigo-500 text-indigo-400 font-semibold flex items-center gap-1.5 transition";
+        } else {
+          pane.classList.add('hidden');
+          btn.className = "tab-btn px-3 py-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200 font-medium flex items-center gap-1.5 transition";
+        }
+      });
+    }
+
+    async function executeAudit() {
+      const mode = document.querySelector('input[name="audit-mode"]:checked').value;
+      const diffText = document.getElementById('diff-input').value;
+
+      setLoading(true);
+
+      const statusContainer = document.getElementById('sse-status-container');
+      const stageMsg = document.getElementById('sse-stage-msg');
+      statusContainer.classList.remove('hidden');
+      stageMsg.textContent = "Connecting to /api/audit/stream...";
+
+      try {
+        const response = await fetch('/api/audit/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            scenario_id: activeScenarioId,
+            diff_text: diffText,
+            mode: mode
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n\n');
+          buffer = lines.pop(); // Retain incomplete line
+
+          for (const chunk of lines) {
+            const trimmed = chunk.trim();
+            if (trimmed.startsWith(': keepalive')) {
+              // Heartbeat comment
+              continue;
+            }
+            if (trimmed.startsWith('data: ')) {
+              try {
+                const event = JSON.parse(trimmed.slice(6));
+                handleSSEEvent(event);
+              } catch (e) {
+                console.error("SSE parse error:", e);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("SSE stream failed, falling back to POST /api/audit:", err);
+        stageMsg.textContent = "Streaming unavailable, executing fallback /api/audit...";
+        try {
+          const fbRes = await fetch('/api/audit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              scenario_id: activeScenarioId,
+              diff_text: diffText,
+              mode: mode
+            })
+          });
+          const fbData = await fbRes.json();
+          renderAuditResult(fbData);
+        } catch (fbErr) {
+          alert(`Audit execution error: ${fbErr.message}`);
+        }
+      } finally {
+        setLoading(false);
+        setTimeout(() => {
+          statusContainer.classList.add('hidden');
+        }, 2000);
+        await loadTelemetry();
+      }
+    }
+
+    function handleSSEEvent(ev) {
+      const stageMsg = document.getElementById('sse-stage-msg');
+      if (ev.type === 'stage') {
+        stageMsg.textContent = `[${ev.stage}] ${ev.message}`;
+      } else if (ev.type === 'prepass_complete') {
+        document.getElementById('stage0-secrets').textContent = ev.secrets_redacted;
+      } else if (ev.type === 'complete') {
+        stageMsg.textContent = "Verification audit completed cleanly!";
+        renderAuditResult(ev.result);
+      } else if (ev.type === 'error') {
+        stageMsg.textContent = `Error: ${ev.message}`;
+        alert(`Verification Error: ${ev.message}`);
+      }
+    }
+
+    function renderAuditResult(result) {
+      if (!result || !result.verdict) return;
+      lastResult = result;
+
+      // 1. Stage 0 Counters
+      const secretsCount = (result.secret_scan && result.secret_scan.findings) ? result.secret_scan.findings.length : 0;
+      const symbolsCount = (result.blast_radius && result.blast_radius.modified_symbols) ? result.blast_radius.modified_symbols.length : 0;
+      const callersCount = (result.blast_radius && result.blast_radius.impacted_callers) ? result.blast_radius.impacted_callers.length : 0;
+
+      document.getElementById('stage0-secrets').textContent = secretsCount;
+      document.getElementById('stage0-symbols').textContent = symbolsCount;
+      document.getElementById('stage0-callers').textContent = callersCount;
+
+      // 2. Verdict Banner
+      const v = result.verdict;
+      const banner = document.getElementById('verdict-banner');
+      const tag = document.getElementById('verdict-tag');
+      const score = document.getElementById('verdict-score');
+      const summary = document.getElementById('verdict-summary');
+
+      tag.textContent = v.verdict;
+      score.textContent = v.risk_score;
+      summary.textContent = v.summary;
+
+      if (v.verdict === 'BLOCK') {
+        banner.className = "p-4 rounded-xl border border-red-500/30 bg-red-950/20 flex flex-col md:flex-row md:items-center justify-between gap-4";
+        tag.className = "px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/30";
+      } else if (v.verdict === 'WARN') {
+        banner.className = "p-4 rounded-xl border border-amber-500/30 bg-amber-950/20 flex flex-col md:flex-row md:items-center justify-between gap-4";
+        tag.className = "px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30";
+      } else {
+        banner.className = "p-4 rounded-xl border border-emerald-500/30 bg-emerald-950/20 flex flex-col md:flex-row md:items-center justify-between gap-4";
+        tag.className = "px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+      }
+
+      // 3. Tab 1 Findings Cards
+      const findingsList = document.getElementById('findings-list');
+      const findings = v.findings || [];
+      document.getElementById('badge-findings-count').textContent = findings.length;
+
+      if (findings.length === 0) {
+        findingsList.innerHTML = `<div class="p-6 text-center text-xs text-slate-500 bg-[#090d16] rounded-lg border border-slate-800">No defects or security issues flagged. Safe to merge.</div>`;
+      } else {
+        findingsList.innerHTML = findings.map((f, idx) => {
+          const isCrit = f.severity === 'CRITICAL' || f.severity === 'HIGH';
+          const sevBadge = isCrit ? 'bg-red-500/20 text-red-400 border-red-500/30' : 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+          const patchHtml = f.suggested_patch ? `
+            <div class="mt-3 pt-3 border-t border-slate-800/80">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-[11px] font-semibold text-cyan-400 uppercase tracking-wider">Suggested Fix Diff</span>
+                <button onclick="copyPatch(${idx})" id="copy-btn-${idx}" class="text-[10px] px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition cursor-pointer">Copy Patch</button>
+              </div>
+              <pre class="p-2.5 rounded bg-[#070a10] border border-slate-800/80 text-[11px] text-slate-300 font-mono overflow-x-auto leading-relaxed">${escapeHtml(f.suggested_patch)}</pre>
+            </div>
+          ` : '';
+
+          return `
+            <div class="p-4 rounded-lg border border-slate-800 bg-[#090d16] space-y-2">
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-mono font-bold text-slate-200">${f.id}</span>
+                  <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full border ${sevBadge}">${f.severity}</span>
+                  <span class="text-[10px] font-mono text-slate-400 uppercase">${f.category}</span>
+                </div>
+                <span class="text-xs font-mono text-slate-400">${f.file_path}:${f.start_line}-${f.end_line}</span>
+              </div>
+              <h5 class="text-sm font-semibold text-slate-200">${f.title}</h5>
+              <p class="text-xs text-slate-400 leading-relaxed">${f.explanation}</p>
+              ${patchHtml}
+            </div>
+          `;
+        }).join('');
+      }
+
+      // 4. Tab 2 Blast Radius
+      const symbolsList = document.getElementById('blast-symbols-list');
+      const callersList = document.getElementById('blast-callers-list');
+      const symbols = (result.blast_radius && result.blast_radius.modified_symbols) || [];
+      const callers = (result.blast_radius && result.blast_radius.impacted_callers) || [];
+
+      symbolsList.innerHTML = symbols.length ? symbols.map(s => `
+        <div class="p-3 rounded-lg border border-slate-800 bg-[#090d16] text-xs space-y-1">
+          <div class="flex items-center justify-between">
+            <span class="font-mono font-semibold text-indigo-300">${s.name} (${s.kind})</span>
+            <span class="text-slate-500 font-mono">${s.file_path}:${s.start_line}-${s.end_line}</span>
+          </div>
+          <code class="text-[11px] text-slate-400 block truncate">${s.signature}</code>
+        </div>
+      `).join('') : '<p class="text-xs text-slate-500">No symbols modified.</p>';
+
+      callersList.innerHTML = callers.length ? callers.map(c => `
+        <div class="p-3 rounded-lg border border-slate-800 bg-[#090d16] text-xs space-y-1">
+          <div class="flex items-center justify-between">
+            <span class="font-mono font-semibold text-amber-300">${c.caller_file}:${c.caller_line}</span>
+            <span class="text-slate-400 font-mono">in ${c.caller_scope}</span>
+          </div>
+          <code class="text-[11px] text-slate-300 block truncate font-mono">${c.call_snippet}</code>
+        </div>
+      `).join('') : '<p class="text-xs text-slate-500">No upstream callers impacted.</p>';
+
+      // 5. Tab 3 Trace & <think>
+      const traceReqIds = document.getElementById('trace-request-ids');
+      const reqIds = result.request_ids || [];
+      traceReqIds.innerHTML = reqIds.length ? reqIds.map(id => `<span class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-[11px]">${id}</span>`).join('') : '<span class="text-slate-500">None</span>';
+
+      const toolsTbody = document.getElementById('trace-tools-tbody');
+      const traces = result.tool_traces || [];
+      toolsTbody.innerHTML = traces.length ? traces.map(t => `
+        <tr class="hover:bg-slate-900/40">
+          <td class="p-2.5 text-center text-slate-400">${t.step_index}</td>
+          <td class="p-2.5 text-cyan-400 font-semibold">${t.tool_name}</td>
+          <td class="p-2.5 text-slate-400 text-[11px]">${t.call_id}</td>
+          <td class="p-2.5 text-[11px] text-slate-300 truncate max-w-xs">${escapeHtml(t.output_preview)}</td>
+          <td class="p-2.5 text-right text-slate-400">${t.duration_ms.toFixed(1)}ms</td>
+        </tr>
+      `).join('') : '<tr><td colspan="5" class="p-4 text-center text-slate-500 text-xs">Direct model response with 0 intermediate tool calls.</td></tr>';
+
+      const thinkContainer = document.getElementById('trace-thinking-container');
+      const thinkTraces = result.reasoning_traces || [];
+      thinkContainer.innerHTML = thinkTraces.length ? thinkTraces.map((tr, i) => `
+        <details class="p-3 rounded-lg border border-slate-800 bg-[#090d16] text-xs" ${i === 0 ? 'open' : ''}>
+          <summary class="font-semibold text-slate-300 cursor-pointer hover:text-indigo-300 transition">Turn ${i + 1} Internal Reasoning Trace</summary>
+          <p class="mt-2 text-slate-400 text-xs font-mono whitespace-pre-wrap leading-relaxed">${escapeHtml(tr)}</p>
+        </details>
+      `).join('') : '<p class="text-xs text-slate-500">No reasoning trace emitted.</p>';
+
+      // 6. Tab 4 Pytest
+      const testCode = result.synthesized_test_code || '# No test synthesized.';
+      document.getElementById('synthesized-test-code').textContent = testCode;
+    }
+
+    function copyPatch(idx) {
+      if (!lastResult || !lastResult.verdict.findings[idx]) return;
+      const text = lastResult.verdict.findings[idx].suggested_patch;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById(`copy-btn-${idx}`);
+        btn.textContent = "Copied!";
+        setTimeout(() => btn.textContent = "Copy Patch", 2000);
+      });
+    }
+
+    function copyPytestCode() {
+      const text = document.getElementById('synthesized-test-code').textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('copy-pytest-btn');
+        btn.textContent = "Copied!";
+        setTimeout(() => btn.textContent = "Copy pytest Suite", 2000);
+      });
+    }
+
+    function setLoading(isLoading) {
+      const btn = document.getElementById('run-audit-btn');
+      const icon = document.getElementById('run-icon');
+      const spinner = document.getElementById('run-spinner');
+      const text = document.getElementById('run-btn-text');
+
+      if (isLoading) {
+        btn.disabled = true;
+        icon.classList.add('hidden');
+        spinner.classList.remove('hidden');
+        text.textContent = "Verifying...";
+      } else {
+        btn.disabled = false;
+        icon.classList.remove('hidden');
+        spinner.classList.add('hidden');
+        text.textContent = "Run Verification Harness";
+      }
+    }
+
+    function openDoctorModal() {
+      document.getElementById('doctor-modal').classList.remove('hidden');
+      runDoctorDiagnostics();
+    }
+
+    function closeDoctorModal() {
+      document.getElementById('doctor-modal').classList.add('hidden');
+    }
+
+    async function runDoctorDiagnostics() {
+      const loading = document.getElementById('doctor-loading');
+      const results = document.getElementById('doctor-results');
+      loading.classList.remove('hidden');
+      results.classList.add('hidden');
+
+      try {
+        const res = await fetch('/api/doctor?live=0');
+        const data = await res.json();
+        loading.classList.add('hidden');
+        results.classList.remove('hidden');
+
+        results.innerHTML = data.checks.map(c => `
+          <div class="p-3 rounded-lg border border-slate-800 bg-[#090d16] text-xs flex items-center justify-between gap-4">
+            <div>
+              <div class="font-semibold text-slate-200">${c.name}</div>
+              <div class="text-[11px] text-slate-400 mt-0.5">${c.detail}</div>
+              ${c.fix_hint ? `<div class="text-[10px] text-amber-400 mt-0.5">Hint: ${c.fix_hint}</div>` : ''}
+            </div>
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase font-mono ${c.passed ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}">
+              ${c.passed ? 'PASS' : 'FAIL'}
+            </span>
+          </div>
+        `).join('');
+      } catch (err) {
+        loading.classList.add('hidden');
+        results.classList.remove('hidden');
+        results.innerHTML = `<p class="text-xs text-red-400">Failed to run doctor diagnostics: ${err.message}</p>`;
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+  </script>
+</body>
+</html>
