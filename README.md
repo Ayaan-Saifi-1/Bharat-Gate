@@ -21,8 +21,8 @@ You can verify the entire CLI, AST analyzer, SQLite WAL cache, and multi-hop `/v
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/<your-username>/bharat-gate.git
-cd bharat-gate
+git clone https://github.com/Ayaan-Saifi-1/Bharat-Gate.git
+cd Bharat-Gate
 python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
@@ -44,7 +44,7 @@ BHARATCODE_CACHE_DIR=.bharat_gate_cache
 BHARATCODE_MAX_CONCURRENT=2
 ```
 
-### 3. Run the 4 Instant Judge Verification Commands
+### 3. Run the Instant Judge Verification Commands
 
 ```bash
 # 1. Run the 6-point environment, SQLite WAL, and BharatCode health diagnostic
@@ -54,10 +54,13 @@ python manage.py doctor                   # Live /v1/responses ping (prints x-re
 # 2. Inspect a complete multi-turn /v1/responses tool-call audit in 0ms (Offline Replay Mode)
 python manage.py demo --scenario 1 --show-thinking --show-test
 
-# 3. Run the 3-workload Shared-GPU Token & SHA-256 Cache Benchmark
+# 3. Launch the Linear-inspired dark engineering Web Studio (<0.5s startup, 0 npm dependencies)
+python manage.py serve                    # Serves studio at http://127.0.0.1:5000
+
+# 4. Run the 3-workload Shared-GPU Token & SHA-256 Cache Benchmark
 python manage.py benchmark
 
-# 4. Run all 38 deterministic pytest unit tests (executes in <0.4s via httpx.MockTransport)
+# 5. Run all 50 deterministic pytest unit tests (executes in <1.0s via httpx.MockTransport)
 pytest
 ```
 
@@ -114,6 +117,7 @@ BharatGate supports dual invocation via either `python manage.py <command>` or `
 | **`hook`** | `python manage.py hook <install \| uninstall \| status>` | Safely installs or removes a native `.git/hooks/pre-push` gate. Automatically backs up any existing user hook to `.git/hooks/pre-push.bharatgate.bak` and restores it on uninstall. |
 | **`export-patch`** | `python manage.py export-patch [--finding-id BG-001] [--output fix.patch] [--export-test test_reg.py]` | Exports the unified diff patch and/or AST-verified `pytest` regression suite from the most recent audit run. |
 | **`benchmark`** | `python manage.py benchmark [--json]` | Executes a 3-pass workload (Docs Fast-Pass, Cold Multi-Hop Audit, Warm SQLite SHA-256 Cache Hit) demonstrating `66.7%` GPU token savings. |
+| **`serve`** | `python manage.py serve [--host 127.0.0.1] [--port 5000]` | Launches the Linear/Vercel-inspired dark engineering Web Studio on `http://127.0.0.1:5000` with 0 npm dependencies, SSE streaming keepalive heartbeats, and interactive 4-tab inspection workbench. |
 
 
 ## Pre-Baked Multi-Hop Engineering Scenarios (`bharat_gate/data/prebaked_replays.py`)
@@ -130,8 +134,11 @@ For instant review even when shared GPU queues are busy, BharatGate includes thr
 ## Repository Structure
 
 ```text
-bharat-gate/
+Bharat-Gate/
 ├── manage.py                               # Root CLI entry point (`python manage.py <cmd>`)
+├── app.py                                  # Root Web Studio entry point (`flask run` / `python app.py`)
+├── BharatCode.txt                          # Official technical hackathon specification
+├── ARCHITECTURE_AND_INTERVIEW_GUIDE.md     # Module walkthrough & founder interview defense
 ├── requirements.txt                        # Dependencies (pydantic, httpx, flask, rich, pytest, python-dotenv)
 ├── pytest.ini                              # Configures pytest discovery and pythonpath
 ├── .env.example                            # Documented environment variable template
@@ -157,32 +164,40 @@ bharat-gate/
 │   │       └── orchestrator.py             # 4-stage stateless /v1/responses orchestrator
 │   ├── data/
 │   │   └── prebaked_replays.py             # 3 complete multi-hop scenarios for 0ms Judge Replay Mode
-│   └── cli/
-│       ├── __main__.py                     # Enables `python -m bharat_gate.cli`
-│       ├── git_ops.py                      # Git subprocess wrapper, pre-push hook manager & audit persistence
-│       ├── doctor.py                       # 6-point diagnostic engine & live /v1/responses ping
-│       ├── formatter.py                    # Rich terminal tables, diff panels & telemetry renderer
-│       └── main.py                         # CLI command router
+│   ├── cli/
+│   │   ├── __main__.py                     # Enables `python -m bharat_gate.cli`
+│   │   ├── git_ops.py                      # Git subprocess wrapper, pre-push hook manager & audit persistence
+│   │   ├── doctor.py                       # 6-point diagnostic engine & live /v1/responses ping
+│   │   ├── formatter.py                    # Rich terminal tables, diff panels & telemetry renderer
+│   │   └── main.py                         # CLI command router
+│   └── web/
+│       ├── __init__.py
+│       ├── app.py                          # Flask REST & SSE streaming server
+│       └── templates/
+│           └── studio.html                 # Linear/Vercel-inspired dark engineering Web Studio
 ├── tests/
 │   ├── test_phase1_gateway.py              # 12 unit tests for gateway, parser, cache, 503 backoff & truncation guard
 │   ├── test_phase2_harness.py              # 14 unit tests for diff parser, secrets, AST graph, sandbox tools & loop
-│   └── test_phase3_cli.py                  # 12 unit tests for CLI commands, doctor, git hooks, replays & benchmark
+│   ├── test_phase3_cli.py                  # 12 unit tests for CLI commands, doctor, git hooks, replays & benchmark
+│   └── test_phase4_web.py                  # 12 unit tests for Web Studio, REST APIs, SSE heartbeats & mode switching
 └── scripts/
     ├── verify_phase1.py                    # Phase 1 gateway & live handshake verification script
     ├── verify_phase2.py                    # Phase 2 multi-turn tool-calling audit verification script
-    └── verify_phase3.py                    # Phase 3 end-to-end CLI workflow verification script
+    ├── verify_phase3.py                    # Phase 3 end-to-end CLI workflow verification script
+    └── verify_phase4.py                    # Phase 4 Web Studio & end-to-end integration verification script
 ```
 
 
-## Verification & Automated Test Suite (`38/38 Passing`)
+## Verification & Automated Test Suite (`50/50 Passing`)
 
-All 38 unit tests use `httpx.MockTransport`, temporary Git workspaces (`tmp_path`), and injectable clocks so the entire test suite runs deterministically in **under 0.5 seconds** with zero network flakiness:
+All 50 unit tests use `httpx.MockTransport`, temporary Git workspaces (`tmp_path`), and injectable clocks so the entire test suite runs deterministically in **under 1.0 second** with zero network flakiness:
 
 | Test Suite | Test Count | Key Behaviors Verified |
 | :--- | :--- | :--- |
 | `tests/test_phase1_gateway.py` | **12 Tests** | Closed/unclosed `<think>` stripping, `/responses` (`status="incomplete"`) and `/chat/completions` (`finish_reason="length"`) truncation detection, `TruncatedToolCallError` blocking on incomplete tool calls, `store: False` enforcement, `HTTP 503` retry recovery (`retry_count == 2`), `HTTP 400/401` immediate fail-fast, key-order-independent SHA-256 SQLite caching, and `x-request-id` telemetry aggregation. |
 | `tests/test_phase2_harness.py` | **14 Tests** | Unified diff line-number tracking, pre-API secret redaction (`BHARATCODE_API_KEY`, `AKIA...`, `sk-...`), Python `ast` symbol extraction, cross-file caller discovery (`blast_radius.py`), sandbox path-traversal (`../../etc/passwd`) and `.env` blocking, 0-token docs-only fast-pass, multi-turn `FunctionCallItem` + `FunctionCallOutputItem` (`call_id`) replay, Pydantic JSON self-repair with `reasoning={"effort": "none"}`, and AST-valid `pytest` test synthesis. |
 | `tests/test_phase3_cli.py` | **12 Tests** | Pre-baked scenario validation, `doctor --no-llm` and mocked live handshake, `.git/hooks/pre-push` installation/backup/restoration, `demo` across all 3 scenarios, `check --diff-file` blocking (`exit code 1`) on leaked secrets, `export-patch` file generation, `benchmark` token-savings calculation, and `manage.py` subprocess execution. |
+| `tests/test_phase4_web.py` | **12 Tests** | Web Studio UI template rendering, `/api/scenarios` payload completeness, `/api/doctor` diagnostic JSON, `/api/telemetry` cache statistics, `/api/audit` replay & offline mock modes, SSE `/api/audit/stream` events, 10s `: keepalive\n\n` heartbeat comments, mode fallback, and `BharatCode.txt` submission specification compliance. |
 
 
 ## Security & Privacy Guarantees

@@ -1,0 +1,183 @@
+================================================================================
+BHARATGATE (bharat-gate) — TECHNICAL SUBMISSION SPECIFICATION
+Autonomous Pre-Push Code Verification Gate & Shared-GPU Gateway
+BharatCode Build League · Track: Coding & Developer Tools
+================================================================================
+
+1. PROJECT METADATA & REPOSITORY
+--------------------------------------------------------------------------------
+Project Name:       BharatGate (bharat-gate)
+Repository URL:     https://github.com/Ayaan-Saifi-1/Bharat-Gate
+Author:             Ayaan Saifi
+Track:              Coding & developer tools
+Primary Model:      qwen-3.8-27b
+Fallback/Alt Model: deepseek-v4.1-flash
+Target API:         BharatCode Model API (https://bharatcode.ai/build)
+Core Runtime:       Python >= 3.11 (Standard Library + Pydantic v2 + HTTPX + Flask + Rich)
+Zero Build Burden:  No Node.js, Webpack, or npm dependencies. Starts in <0.5s.
+
+
+2. PROBLEM STATEMENT & ARCHITECTURAL THESIS
+--------------------------------------------------------------------------------
+AI coding tools accelerate code generation, but developers pushing large diffs
+introduce three critical classes of failures:
+1. Cross-File Contract Breakage: A diff changing a function signature, return type,
+   or unit of measurement (e.g., paise vs rupees) passes isolated unit checks but
+   silently breaks un-updated callers in other repository files.
+2. Accidental Credential Exposure: Developers unintentionally commit API keys or
+   secrets directly into diffs. Sending raw diffs to external LLMs leaks secrets
+   to third-party APIs.
+3. Shared-GPU Overload & Thrashing: Running heavyweight 27B model inference on every
+   commit, documentation change, or repeated diff exhausts shared GPU slots, causes
+   HTTP 503 queue saturation, and wastes developer time.
+
+BharatGate sits between `git commit` and `git push` as an autonomous verification
+gate. It runs a 0-token deterministic local pre-pass to scrub secrets and compute
+an AST caller blast radius, then orchestrates `qwen-3.8-27b` over stateless
+multi-turn tool calls, validates fixes with Pydantic and AST parsing, and synthesizes
+runnable pytest regression suites.
+
+
+3. BHARATCODE API INTEGRATION & PROTOCOL ARCHITECTURE
+--------------------------------------------------------------------------------
+Base URL:           https://bharatcode.ai/api/model/v1
+Endpoints Used:
+  - POST /v1/responses        (Stateless multi-turn tool calling & agent loop)
+  - POST /v1/chat/completions (Single-turn triage, JSON self-repair & diagnostics)
+
+Stateless Architecture Rule:
+  - BharatCode requires "store": false on /v1/responses. Setting "store": true or
+    passing "previous_response_id" returns HTTP 400 Bad Request.
+  - BharatGate enforces stateless client-side session management: the full conversation
+    history (messages, FunctionCallItem tool requests, and FunctionCallOutputItem
+    tool results) is maintained in-memory and replayed on each turn with matching
+    "call_id" values.
+
+
+4. REASONING TOKEN BUDGET & TRUNCATION RESILIENCE
+--------------------------------------------------------------------------------
+On qwen-3.8-27b and deepseek-v4.1-flash, internal <think>...</think> reasoning
+tokens count toward max_output_tokens.
+
+Truncation Hazards Handled:
+1. Tool Call Truncation: When reasoning tokens consume the budget, the model may
+   truncate mid-JSON while emitting a tool call. Executing partial JSON causes
+   catastrophic syntax errors.
+   - Truncation Detection: BharatGate inspects status == "incomplete",
+     incomplete_details.reason == "max_output_tokens", finish_reason == "length",
+     and unclosed <think> tags.
+   - Guard Mechanism: If a tool call is incomplete, client.py raises
+     TruncatedToolCallError, halting broken tool execution immediately.
+   - Automatic Recovery: orchestrator.py automatically catches the truncation and
+     retries the turn with disable_reasoning=True (setting reasoning: {"effort": "none"})
+     and an expanded 8192 token ceiling.
+2. Dynamic Reasoning Allocation:
+   - Deep Multi-Hop Investigation: Uses default reasoning (full <think> trace) to
+     analyze cross-file caller dependencies and logic anomalies.
+   - Lightweight Tasks: Employs reasoning: {"effort": "none"} (or reasoning_effort: "none")
+     for health checks (doctor) and JSON schema self-repair, reducing latency and
+     token usage by >65%.
+3. Clean Trace Extraction:
+   - BharatGate regex-extracts <think> blocks into dedicated audit telemetry while
+     presenting clean, valid JSON/diff output to developers.
+
+
+5. SHARED-GPU RELIABILITY & ZERO-TOKEN CACHING
+--------------------------------------------------------------------------------
+1. Concurrency Limiting:
+   - RequestQueue uses a BoundedSemaphore(2) to cap simultaneous in-flight API requests,
+     preventing runaway concurrency against rate limits.
+2. Jittered Exponential Backoff:
+   - HTTP 503 (GPU server busy), HTTP 429 (rate limited), and network timeouts
+     automatically trigger exponential backoff with randomized jitter
+     (base 2.0s: 2s -> 4s -> 8s -> 16s, up to 4 retries).
+   - Client errors (HTTP 400, 401, 403) fail fast with 0 retries.
+3. Content-Addressed SQLite WAL Cache:
+   - GatewayCache normalizes requests into canonical key-sorted JSON, hashes them
+     with SHA-256, and stores non-truncated responses in a WAL-mode SQLite database.
+   - Repeat audits of identical diffs execute in <2ms at 0 token cost (100% cache hit).
+4. SSE Keepalive Heartbeats:
+   - Long-running audits stream SSE events with ": keepalive\n\n" comments emitted
+     every 10 seconds to keep reverse proxies, load balancers, and browsers alive.
+5. Upstream Telemetry Ledger:
+   - Captures and stores every upstream "x-request-id" header alongside latency,
+     retry counts, cache status, and token metrics.
+
+
+6. 4-STAGE VERIFICATION PIPELINE
+--------------------------------------------------------------------------------
+Stage 0: Deterministic Pre-Pass & AST Graph (Local CPU, <5ms, 0 Tokens)
+  - Fast-Pass: Markdown and docs-only changes (.md, .txt) pass immediately (0 tokens).
+  - Secret Scanner: Scans added lines (+) using regex for known formats (API keys,
+    AWS tokens, private keys) and Shannon entropy (threshold >= 3.5). Replaces raw
+    secrets with <REDACTED:RULE_ID> before any payload is sent to BharatCode.
+  - Diff Parser: Parses unified git diffs into structured hunks with old/new line
+    mapping and SHA-256 content hashes.
+  - Python AST Blast-Radius: Walks the repo using Python standard library ast.parse()
+    to find modified functions/classes and traverses all repository files with
+    ast.NodeVisitor (ast.Call & ast.ImportFrom) to discover all cross-file callers.
+
+Stage 1: Stateless Multi-Turn Tool Loop (POST /v1/responses, store: false)
+  - qwen-3.8-27b receives the sanitized diff, symbol list, and blast radius report.
+  - Across up to 4 autonomous hops, the model calls 6 read-only sandboxed tools:
+    1. read_file_lines(file_path, start_line, end_line)
+    2. find_symbol_callers(symbol_name)
+    3. get_file_symbols_and_imports(file_path)
+    4. search_repo_text(query)
+    5. check_dependency_manifest(package_name)
+    6. validate_unified_patch(file_path, old_snippet, new_snippet)
+  - Every tool path is validated via RepositorySandboxTools._resolve_safe_path(),
+    strictly blocking directory traversal (../) and sensitive files (.env, .git).
+
+Stage 2: Pydantic Validation & Schema Self-Repair
+  - Parses response into AuditVerdict schema (status, findings, suggested_patch,
+    risk_score, confidence).
+  - If schema validation fails, extracts exact Pydantic ValidationError field paths
+    and sends a fast repair prompt with reasoning: {"effort": "none"}.
+
+Stage 3: AST Patch Verification & Test Synthesis
+  - Validates suggested code fixes against source files with verbatim snippet
+    matching and ast.parse() syntax validation.
+  - Merges deterministic Stage 0 secret violations.
+  - Synthesizes an AST-valid pytest regression test suite for immediate execution.
+
+
+7. 10-SECOND JUDGE QUICKSTART COMMANDS
+--------------------------------------------------------------------------------
+Clone & Setup:
+  git clone https://github.com/Ayaan-Saifi-1/Bharat-Gate.git
+  cd Bharat-Gate
+  pip install -r requirements.txt
+
+Offline Replays & Benchmark (0 API Key Required, 0ms, 0 Tokens):
+  # 1. 6-point environment, SQLite WAL, and diagnostic check
+  python manage.py doctor --no-llm
+
+  # 2. Replay Multi-Hop Scenario 1 (Shared-GPU SSE Slot Leak)
+  python manage.py demo --scenario 1 --show-thinking --show-test
+
+  # 3. Replay Multi-Hop Scenario 2 (Razorpay Currency Breakage)
+  python manage.py demo --scenario 2
+
+  # 4. Replay Multi-Hop Scenario 3 (Pre-API Secret Redaction + SQLi)
+  python manage.py demo --scenario 3
+
+  # 5. Run the 3-workload Token & SQLite SHA-256 Cache Benchmark
+  python manage.py benchmark
+
+  # 6. Launch the Linear-inspired dark engineering Web Studio
+  python manage.py serve
+  # Open http://127.0.0.1:5000 in any browser
+
+Automated Unit Test Suite:
+  # Runs all 50 deterministic unit tests in <1.0s (100% MockTransport & tmp_path)
+  pytest
+
+Live API Mode (With valid BHARATCODE_API_KEY in .env):
+  python manage.py doctor
+  python manage.py demo --scenario 1 --live
+  python manage.py check --staged
+
+================================================================================
+END OF BHARATGATE SUBMISSION SPECIFICATION
+================================================================================
